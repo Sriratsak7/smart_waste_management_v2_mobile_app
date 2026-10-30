@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="th" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PAKALOLO GROUP V2.0 - Smart Waste Management</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            bg: '#080d1a',
+                            card: '#111827',
+                            cardLight: '#182234',
+                            border: '#1f2d42'
+                        },
+                        brand: {
+                            teal: '#00cc99',
+                            emerald: '#10b981',
+                            accent: '#14b8a6'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Kanit', 'Prompt', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300&family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * {
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        body {
+            font-family: 'Kanit', sans-serif;
+            background-color: #030712;
+            color: #f1f5f9;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .leaflet-tile-pane {
+            filter: brightness(0.65) invert(1) contrast(1.2) hue-rotate(200deg) saturate(0.3);
+        }
+        .leaflet-container {
+            font-family: 'Kanit', sans-serif;
+            background: #080d1a;
+        }
+        .custom-bin-pin {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            color: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            transition: transform 0.2s;
+        }
+        .custom-bin-pin:hover {
+            transform: scale(1.15);
+        }
+    </style>
+</head>
+<body class="bg-[#030712] min-h-screen flex items-center justify-center p-0 sm:p-4">
+
+    <!-- MOBILE CONTAINER FRAME -->
+    <div class="w-full max-w-md h-[100vh] sm:h-[860px] bg-[#080d1a] sm:rounded-[36px] border-0 sm:border-[6px] border-[#1e2d42] shadow-2xl overflow-hidden flex flex-col relative">
+
+        <!-- APP TOP HEADER -->
+        <header class="bg-[#0b1326]/90 backdrop-blur-md px-4 py-3 border-b border-[#1f2d42] flex items-center justify-between shrink-0 z-40">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-9 h-9 rounded-2xl bg-[#00cc99] flex items-center justify-center text-slate-950 shadow-md shadow-emerald-950/50">
+                    <i data-lucide="trash-2" class="w-5 h-5 font-bold"></i>
+                </div>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <h1 class="font-bold text-sm text-white tracking-wide uppercase">PAKALOLO GROUP</h1>
+                        <span class="bg-[#00cc99]/20 text-[#00cc99] border border-[#00cc99]/30 text-[10px] font-bold px-1.5 py-0.2 rounded">V2.0</span>
+                    </div>
+                    <p class="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-[#00cc99] animate-pulse"></span>
+                        <span id="header-time">22 Oct 2026, 13:08:13</span>
+                    </p>
+                </div>
+            </div>
+
+            <button onclick="refreshData()" class="w-9 h-9 flex items-center justify-center bg-[#151f32] active:scale-90 text-slate-300 hover:text-white rounded-xl border border-[#23334d] transition">
+                <i data-lucide="refresh-cw" id="refresh-icon" class="w-4 h-4"></i>
+            </button>
+        </header>
+
+        <!-- TOAST NOTIFICATION -->
+        <div id="toast" class="absolute top-16 left-4 right-4 z-50 transform -translate-y-20 opacity-0 transition-all duration-300 bg-[#00cc99] text-slate-950 p-3 rounded-2xl shadow-2xl flex items-center space-x-3 border border-emerald-300 pointer-events-none">
+            <i data-lucide="check-circle-2" class="w-5 h-5 shrink-0"></i>
+            <div>
+                <h4 class="font-bold text-xs" id="toast-title">สำเร็จ</h4>
+                <p class="text-[11px] text-slate-900" id="toast-desc">อัปเดตข้อมูลแล้ว</p>
+            </div>
+        </div>
+
+        <!-- MAIN SCROLL CONTENT AREA -->
+        <main class="flex-1 overflow-y-auto no-scrollbar p-3.5 space-y-3.5 pb-24">
+
+            <!-- TAB 1: DASHBOARD -->
+            <section id="screen-dashboard" class="space-y-3">
+                <!-- Alert Banner -->
+                <div class="bg-[#181a24] border-l-4 border-amber-500 rounded-xl p-3 flex items-start space-x-3">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-500 shrink-0 mt-0.5"></i>
+                    <div class="text-xs text-slate-300 leading-relaxed">
+                        <strong class="font-semibold text-white block mb-0.5">ระบบตรวจพบจุดถังขยะเต็มชั่วคราว</strong>
+                        บริเวณ สวนลุมพินี (ประตู 1) มีปริมาณขยะหนาแน่น 95% เจ้าหน้าที่กำลังเข้าดำเนินการ
+                    </div>
+                </div>
+
+                <!-- 2x2 Stats Grid -->
+                <div class="grid grid-cols-2 gap-2.5">
+                    <div class="bg-[#111827] border border-[#1f2d42] p-3 rounded-2xl relative overflow-hidden">
+                        <span class="text-[11px] text-slate-400 block font-medium">จุดติดตั้งทั้งหมด</span>
+                        <div class="mt-1 flex items-baseline space-x-1">
+                            <span class="text-2xl font-bold text-white">12</span>
+                            <span class="text-xs text-slate-400">จุด</span>
+                        </div>
+                        <div class="mt-1.5 flex items-center space-x-1 text-[10px] text-emerald-400 font-medium">
+                            <i data-lucide="check-circle" class="w-3 h-3"></i>
+                            <span>ครอบคลุม กทม. & ปทุมฯ</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-[#111827] border border-[#1f2d42] p-3 rounded-2xl relative overflow-hidden">
+                        <span class="text-[11px] text-amber-400/90 block font-medium">รอดำเนินการ (เต็ม)</span>
+                        <div class="mt-1 flex items-baseline space-x-1">
+                            <span class="text-2xl font-bold text-amber-400">3</span>
+                            <span class="text-xs text-amber-400/80">จุด</span>
+                        </div>
+                        <div class="mt-1.5 flex items-center space-x-1 text-[10px] text-amber-400 font-medium">
+                            <i data-lucide="clock" class="w-3 h-3"></i>
+                            <span>ต้องเข้าเก็บด่วน</span>
+                        </div>
+                        <i data-lucide="alert-circle" class="absolute -bottom-2 -right-2 w-12 h-12 text-amber-500/10 pointer-events-none"></i>
+                    </div>
+
+                    <div class="bg-[#111827] border border-[#1f2d42] p-3 rounded-2xl">
+                        <span class="text-[11px] text-slate-400 block font-medium">เก็บเรียบร้อยวันนี้</span>
+                        <div class="mt-1 flex items-baseline space-x-1">
+                            <span class="text-2xl font-bold text-white">9</span>
+                            <span class="text-xs text-slate-400">จุด</span>
+                        </div>
+                        <div class="mt-1.5 flex items-center space-x-1 text-[10px] text-emerald-400 font-medium">
+                            <i data-lucide="trending-up" class="w-3 h-3"></i>
+                            <span>+18% จากเมื่อวาน</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-[#111827] border border-[#1f2d42] p-3 rounded-2xl">
+                        <span class="text-[11px] text-emerald-400 block font-medium">คะแนนสะสม Eco</span>
+                        <div class="mt-1 flex items-baseline space-x-1">
+                            <span class="text-2xl font-bold text-[#00cc99]" id="dash-user-pts">120</span>
+                            <span class="text-xs text-[#00cc99] font-semibold">PTS</span>
+                        </div>
+                        <div class="mt-1.5 flex items-center space-x-1 text-[10px] text-slate-400">
+                            <i data-lucide="medal" class="w-3 h-3 text-amber-400"></i>
+                            <span>ระดับ: <strong class="text-slate-200">Eco Hero</strong></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Urgent List Section Header -->
+                <div class="flex items-center justify-between pt-1 px-1">
+                    <h3 class="font-bold text-xs text-white flex items-center gap-1.5">
+                        <i data-lucide="flame" class="w-4 h-4 text-red-500"></i>
+                        จุดเร่งด่วนที่ต้องตรวจสอบ
+                    </h3>
+                    <button onclick="switchTab('map')" class="text-[11px] text-[#00cc99] font-medium flex items-center gap-0.5">
+                        ดูในแผนที่ <i data-lucide="arrow-right" class="w-3 h-3"></i>
+                    </button>
+                </div>
+
+                <!-- Urgent Bin Cards List -->
+                <div class="space-y-2.5">
+                    <!-- Item 1 -->
+                    <div class="bg-[#111827] border border-[#1f2d42] rounded-2xl p-3 flex space-x-3 items-center">
+                        <img src="https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=150&q=80" alt="Lumphini" class="w-16 h-16 rounded-xl object-cover border border-[#23334d] shrink-0">
+                        <div class="flex-1 min-w-0 space-y-1">
+                            <div class="flex items-center justify-between">
+                                <h4 class="font-bold text-xs text-white truncate">สวนลุมพินี (ประตู 1)</h4>
+                                <span class="bg-red-500/20 text-red-400 border border-red-500/30 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> เต็ม 95%
+                                </span>
+                            </div>
+                            <p class="text-[10px] text-slate-400 truncate">เขตปทุมวัน กรุงเทพมหานคร</p>
+                            <div class="flex gap-2 pt-1">
+                                <button onclick="openPhotoModal('สวนลุมพินี (ประตู 1)', 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=800&q=80')" class="flex-1 min-h-[36px] bg-[#1a2538] active:bg-[#23334d] text-slate-300 text-[11px] font-medium rounded-xl flex items-center justify-center space-x-1 border border-[#23334d]">
+                                    <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                    <span>ภาพจริง</span>
+                                </button>
+                                <button onclick="switchTab('report')" class="flex-1 min-h-[36px] bg-[#00cc99] active:bg-emerald-500 text-slate-950 text-[11px] font-bold rounded-xl flex items-center justify-center space-x-1 shadow-md shadow-emerald-950">
+                                    <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                                    <span>แจ้งซ่อม/เก็บ</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Item 2 -->
+                    <div class="bg-[#111827] border border-[#1f2d42] rounded-2xl p-3 flex space-x-3 items-center">
+                        <img src="https://images.unsplash.com/photo-1605600659873-d808a13e4d2a?auto=format&fit=crop&w=150&q=80" alt="Chatuchak" class="w-16 h-16 rounded-xl object-cover border border-[#23334d] shrink-0">
+                        <div class="flex-1 min-w-0 space-y-1">
+                            <div class="flex items-center justify-between">
+                                <h4 class="font-bold text-xs text-white truncate">ตลาดนัดจตุจักร (ประตู 3)</h4>
+                                <span class="bg-red-500/20 text-red-400 border border-red-500/30 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> เต็ม 90%
+                                </span>
+                            </div>
+                            <p class="text-[10px] text-slate-400 truncate">เขตจตุจักร กรุงเทพมหานคร</p>
+                            <div class="flex gap-2 pt-1">
+                                <button onclick="openPhotoModal('ตลาดนัดจตุจักร (ประตู 3)', 'https://images.unsplash.com/photo-1605600659873-d808a13e4d2a?auto=format&fit=crop&w=800&q=80')" class="flex-1 min-h-[36px] bg-[#1a2538] active:bg-[#23334d] text-slate-300 text-[11px] font-medium rounded-xl flex items-center justify-center space-x-1 border border-[#23334d]">
+                                    <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                    <span>ภาพจริง</span>
+                                </button>
+                                <button onclick="switchTab('report')" class="flex-1 min-h-[36px] bg-[#00cc99] active:bg-emerald-500 text-slate-950 text-[11px] font-bold rounded-xl flex items-center justify-center space-x-1 shadow-md shadow-emerald-950">
+                                    <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                                    <span>แจ้งซ่อม/เก็บ</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Item 3 -->
+                    <div class="bg-[#111827] border border-[#1f2d42] rounded-2xl p-3 flex space-x-3 items-center">
+                        <img src="https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=150&q=80" alt="TU Rangsit" class="w-16 h-16 rounded-xl object-cover border border-[#23334d] shrink-0">
+                        <div class="flex-1 min-w-0 space-y-1">
+                            <div class="flex items-center justify-between">
+                                <h4 class="font-bold text-xs text-white truncate">ม.ธรรมศาสตร์ ศูนย์รังสิต (SC1)</h4>
+                                <span class="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> ใกล้เต็ม 85%
+                                </span>
+                            </div>
+                            <p class="text-[10px] text-slate-400 truncate">คลองหลวง ปทุมธานี</p>
+                            <div class="flex gap-2 pt-1">
+                                <button onclick="openPhotoModal('ม.ธรรมศาสตร์ ศูนย์รังสิต (SC1)', 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=800&q=80')" class="flex-1 min-h-[36px] bg-[#1a2538] active:bg-[#23334d] text-slate-300 text-[11px] font-medium rounded-xl flex items-center justify-center space-x-1 border border-[#23334d]">
+                                    <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                    <span>ภาพจริง</span>
+                                </button>
+                                <button onclick="switchTab('report')" class="flex-1 min-h-[36px] bg-[#00cc99] active:bg-emerald-500 text-slate-950 text-[11px] font-bold rounded-xl flex items-center justify-center space-x-1 shadow-md shadow-emerald-950">
+                                    <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                                    <span>แจ้งซ่อม/เก็บ</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: INTERACTIVE MAP -->
+            <section id="screen-map" class="hidden space-y-3">
+                <div class="flex items-center justify-between px-1">
+                    <h3 class="font-bold text-xs text-white flex items-center gap-1.5">
+                        <i data-lucide="map-pin" class="w-4 h-4 text-[#00cc99]"></i>
+                        แผนที่ตำแหน่งถังขยะอัจฉริยะ
+                    </h3>
+                    <span class="text-[10px] text-slate-400">อัปเดตระบบสด</span>
+                </div>
+
+                <!-- Filter Chips -->
+                <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                    <button onclick="filterMap('all')" id="btn-filter-all" class="min-h-[36px] px-3 rounded-xl text-xs font-semibold bg-[#00cc99] text-slate-950 border border-[#00cc99] whitespace-nowrap">
+                        ทั้งหมด (12)
+                    </button>
+                    <button onclick="filterMap('full')" id="btn-filter-full" class="min-h-[36px] px-3 rounded-xl text-xs font-semibold bg-[#111827] text-red-400 border border-[#1f2d42] whitespace-nowrap flex items-center gap-1">
+                        <span class="w-2 h-2 rounded-full bg-red-500"></span> เต็มแล้ว (3)
+                    </button>
+                    <button onclick="filterMap('almost')" id="btn-filter-almost" class="min-h-[36px] px-3 rounded-xl text-xs font-semibold bg-[#111827] text-amber-400 border border-[#1f2d42] whitespace-nowrap flex items-center gap-1">
+                        <span class="w-2 h-2 rounded-full bg-amber-500"></span> ใกล้เต็ม (2)
+                    </button>
+                    <button onclick="filterMap('normal')" id="btn-filter-normal" class="min-h-[36px] px-3 rounded-xl text-xs font-semibold bg-[#111827] text-emerald-400 border border-[#1f2d42] whitespace-nowrap flex items-center gap-1">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span> ปกติ (7)
+                    </button>
+                </div>
+
+                <!-- Map View Box -->
+                <div class="relative w-full h-[380px] rounded-2xl overflow-hidden border border-[#1f2d42] bg-[#111827]">
+                    <div id="map" class="w-full h-full"></div>
+                    
+                    <!-- My Location Overlay Button -->
+                    <button onclick="locateMe()" class="absolute bottom-3 right-3 z-[400] bg-[#151f32]/90 backdrop-blur text-[#00cc99] border border-[#00cc99]/40 text-xs font-bold px-3 py-2 rounded-xl shadow-xl flex items-center space-x-1.5 active:scale-95">
+                        <i data-lucide="crosshair" class="w-4 h-4"></i>
+                        <span>ตำแหน่งฉัน</span>
+                    </button>
+                </div>
+
+                <!-- Selected Pin Info Sheet -->
+                <div id="map-bottom-sheet" class="bg-[#111827] border border-[#1f2d42] rounded-2xl p-3.5 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <span id="sheet-status-badge" class="bg-red-500/20 text-red-400 border border-red-500/30 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                            ถังขยะเต็ม 95%
+                        </span>
+                        <span class="text-[10px] text-slate-400" id="sheet-distance">ห่างจากคุณ ~2.5 กม.</span>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-xs text-white" id="sheet-title">จุดถังขยะ: สวนลุมพินี (ประตู 1)</h4>
+                        <p class="text-[10px] text-slate-400" id="sheet-address">เขตปทุมวัน กรุงเทพมหานคร</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 pt-1">
+                        <a id="sheet-nav-btn" href="https://maps.google.com/?q=13.7298,100.5365" target="_blank" class="min-h-[40px] bg-[#1a2538] active:bg-[#23334d] text-emerald-400 border border-[#23334d] text-xs font-semibold rounded-xl flex items-center justify-center space-x-1.5">
+                            <i data-lucide="navigation" class="w-3.5 h-3.5"></i>
+                            <span>นำทาง Google Maps</span>
+                        </a>
+                        <button onclick="switchTab('report')" class="min-h-[40px] bg-[#00cc99] active:bg-emerald-500 text-slate-950 text-xs font-bold rounded-xl flex items-center justify-center space-x-1.5 shadow-md shadow-emerald-950">
+                            <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+                            <span>แจ้งปัญหาจุดนี้</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: REPORT FORM -->
+            <section id="screen-report" class="hidden space-y-3">
+                <div class="flex items-center justify-between px-1">
+                    <h3 class="font-bold text-xs text-white flex items-center gap-1.5">
+                        <i data-lucide="send" class="w-4 h-4 text-[#00cc99]"></i>
+                        แบบฟอร์มแจ้งปัญหาถังขยะ
+                    </h3>
+                </div>
+                <p class="text-[10px] text-slate-400 px-1 -mt-2">
+                    ส่งเรื่องเพื่อรับ <strong class="text-[#00cc99]">+20 Eco Points</strong> เมื่อเจ้าหน้าที่ดำเนินการแล้ว
+                </p>
+
+                <form onsubmit="handleFormSubmit(event)" class="bg-[#111827] border border-[#1f2d42] rounded-2xl p-3.5 space-y-3.5">
+                    <!-- Dropdown & GPS -->
+                    <div class="space-y-1">
+                        <label class="block text-xs font-semibold text-slate-200">สถานที่/พิกัดถังขยะ <span class="text-red-400">*</span></label>
+                        <div class="flex gap-2">
+                            <select id="report-location-select" required class="flex-1 min-h-[44px] bg-[#080d1a] border border-[#1f2d42] rounded-xl px-3 text-xs text-white focus:outline-none focus:border-[#00cc99]">
+                                <option value="">-- เลือกสถานที่ในระบบ --</option>
+                                <option value="สวนลุมพินี (ประตู 1) - เขตปทุมวัน กทม.">สวนลุมพินี (ประตู 1) - เขตปทุมวัน กทม.</option>
+                                <option value="ตลาดนัดจตุจักร (ประตู 3) - เขตจตุจักร กทม.">ตลาดนัดจตุจักร (ประตู 3) - เขตจตุจักร กทม.</option>
+                                <option value="ม.ธรรมศาสตร์ ศูนย์รังสิต (SC1) - ปทุมธานี">ม.ธรรมศาสตร์ ศูนย์รังสิต (SC1) - ปทุมธานี</option>
+                                <option value="สยามสแควร์ (ซอย 7) - เขตปทุมวัน กทม.">สยามสแควร์ (ซอย 7) - เขตปทุมวัน กทม.</option>
+                                <option value="คลองหนึ่ง (คลอง 1) - รังสิต ปทุมธานี">คลองหนึ่ง (คลอง 1) - รังสิต ปทุมธานี</option>
+                            </select>
+                            <button type="button" onclick="getGPSLocation()" class="min-h-[44px] px-3 bg-[#1a2538] active:bg-[#23334d] border border-[#23334d] text-[#00cc99] text-xs font-semibold rounded-xl flex items-center justify-center space-x-1 shrink-0">
+                                <i data-lucide="crosshair" class="w-4 h-4"></i>
+                                <span>GPS</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Category Chips -->
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-semibold text-slate-200">ประเภทขยะที่พบ <span class="text-red-400">*</span></label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button type="button" onclick="selectChip(this, 'ขยะทั่วไป')" class="chip-btn active min-h-[44px] border-[#00cc99] bg-[#00cc99]/10 text-[#00cc99] border rounded-xl text-xs font-semibold flex items-center justify-center space-x-2">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                <span>ขยะทั่วไป</span>
+                            </button>
+                            <button type="button" onclick="selectChip(this, 'ขยะรีไซเคิล')" class="chip-btn min-h-[44px] border-[#1f2d42] bg-[#080d1a] text-slate-400 border rounded-xl text-xs font-medium flex items-center justify-center space-x-2">
+                                <i data-lucide="recycle" class="w-4 h-4"></i>
+                                <span>ขยะรีไซเคิล</span>
+                            </button>
+                            <button type="button" onclick="selectChip(this, 'ขยะเปียก/อาหาร')" class="chip-btn min-h-[44px] border-[#1f2d42] bg-[#080d1a] text-slate-400 border rounded-xl text-xs font-medium flex items-center justify-center space-x-2">
+                                <i data-lucide="apple" class="w-4 h-4"></i>
+                                <span>ขยะเปียก/อาหาร</span>
+                            </button>
+                            <button type="button" onclick="selectChip(this, 'ขยะอันตราย')" class="chip-btn min-h-[44px] border-[#1f2d42] bg-[#080d1a] text-slate-400 border rounded-xl text-xs font-medium flex items-center justify-center space-x-2">
+                                <i data-lucide="biohazard" class="w-4 h-4"></i>
+                                <span>ขยะอันตราย</span>
+                            </button>
+                        </div>
+                        <input type="hidden" id="selected-category" value="ขยะทั่วไป">
+                    </div>
+
+                    <!-- Photo Upload Box -->
+                    <div class="space-y-1">
+                        <label class="block text-xs font-semibold text-slate-200">แนบภาพถ่ายจุดขยะเต็ม <span class="text-slate-400 font-normal">( Native File Upload )</span></label>
+                        <div class="border-2 border-dashed border-[#1f2d42] active:border-[#00cc99] rounded-2xl p-4 text-center cursor-pointer bg-[#080d1a]/50 relative" onclick="document.getElementById('photo-input').click()">
+                            <input type="file" id="photo-input" accept="image/*" class="hidden" onchange="previewImage(event)">
+                            
+                            <div id="upload-placeholder" class="space-y-1 py-2">
+                                <i data-lucide="upload-cloud" class="w-8 h-8 mx-auto text-slate-500"></i>
+                                <div class="text-xs text-white font-semibold">กดเพื่อถ่ายภาพ หรือ เลือกรูปจากอัลบั้ม</div>
+                                <p class="text-[9px] text-slate-500">รองรับไฟล์ JPG, PNG</p>
+                            </div>
+
+                            <div id="upload-preview" class="hidden relative">
+                                <img id="preview-img" src="" alt="Preview" class="max-h-36 mx-auto rounded-xl object-cover border border-[#1f2d42]">
+                                <button type="button" onclick="event.stopPropagation(); removeImage();" class="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-full shadow">
+                                    <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Description Textarea -->
+                    <div class="space-y-1">
+                        <label class="block text-xs font-semibold text-slate-200">รายละเอียดเพิ่มเติม (ถ้ามี)</label>
+                        <textarea id="report-desc" rows="2" placeholder="เช่น ฝาถังชำรุด, ขยะล้นออกมานอกถัง..." class="w-full bg-[#080d1a] border border-[#1f2d42] rounded-xl p-3 text-xs text-white focus:outline-none focus:border-[#00cc99] placeholder-slate-600"></textarea>
+                    </div>
+
+                    <!-- Notice Card -->
+                    <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-start space-x-2.5">
+                        <i data-lucide="shield-alert" class="w-4 h-4 text-amber-400 shrink-0 mt-0.5"></i>
+                        <p class="text-[10px] text-amber-200 leading-tight">
+                            <strong class="font-bold text-amber-400">ข้อตกลง:</strong> ระบบนี้เป็น Prototype สำหรับจำลองการส่งรายงานจริงของ <strong class="text-white">PAKALOLO GROUP</strong>
+                        </p>
+                    </div>
+
+                    <button type="submit" class="w-full min-h-[46px] bg-[#00cc99] active:bg-emerald-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-emerald-950 flex items-center justify-center space-x-2">
+                        <i data-lucide="send" class="w-4 h-4"></i>
+                        <span>ยืนยันการส่งรายงาน (+20 Eco PTS)</span>
+                    </button>
+                </form>
+            </section>
+
+            <!-- TAB 4: MY REPORTS & ECO POINTS -->
+            <section id="screen-reports" class="hidden space-y-3">
+                <!-- Eco Points Card -->
+                <div class="bg-gradient-to-r from-[#0d1627] via-[#131d30] to-[#0d1627] border border-[#1f2d42] rounded-2xl p-3.5 space-y-2 shadow-xl">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="text-[10px] text-[#00cc99] font-semibold block">คะแนนสะสมของคุณ</span>
+                            <div class="flex items-baseline space-x-1">
+                                <span class="text-3xl font-bold text-white tracking-tight" id="user-points">120</span>
+                                <span class="text-xs text-[#00cc99] font-bold">PTS</span>
+                            </div>
+                        </div>
+                        <button onclick="openRewardModal()" class="min-h-[40px] bg-amber-500 active:bg-amber-400 text-slate-950 font-bold text-xs px-3 rounded-xl flex items-center space-x-1.5 shadow-md shadow-amber-950">
+                            <i data-lucide="gift" class="w-4 h-4"></i>
+                            <span>แลกของรางวัล</span>
+                        </button>
+                    </div>
+                    <div class="border-t border-[#1f2d42] pt-2 flex justify-between text-[10px] text-slate-400">
+                        <span>การแจ้งเรื่องของฉัน</span>
+                        <span class="text-slate-200 font-semibold" id="total-reports-count">3 รายการ</span>
+                    </div>
+                </div>
+
+                <!-- Push Notification Toggle Box -->
+                <div class="bg-[#111827] border border-[#1f2d42] p-3 rounded-2xl flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="bg-[#1a2538] p-2 rounded-xl text-[#00cc99]">
+                            <i data-lucide="bell" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-xs font-bold text-white">การแจ้งเตือนสถานะแบบพุช</h4>
+                            <p class="text-[9px] text-slate-400">แจ้งเตือนเมื่อเจ้าหน้าที่เคลียร์ขยะเสร็จ</p>
+                        </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="notif-toggle" checked class="sr-only peer" onchange="toggleNotification(this)">
+                        <div class="w-11 h-6 bg-[#080d1a] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#00cc99]"></div>
+                    </label>
+                </div>
+
+                <!-- History Timeline Section -->
+                <div class="space-y-2">
+                    <h3 class="font-bold text-xs text-white flex items-center gap-1.5 px-1">
+                        <i data-lucide="history" class="w-4 h-4 text-[#00cc99]"></i>
+                        ประวัติการแจ้งเรื่องล่าสุด
+                    </h3>
+
+                    <div id="reports-list-container" class="space-y-2.5">
+                        <!-- Card Ticket 1 -->
+                        <div class="bg-[#111827] border border-[#1f2d42] rounded-2xl p-3 space-y-2.5">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <span class="text-[9px] text-slate-500 font-mono block">#TICKET-8821</span>
+                                    <h4 class="font-bold text-xs text-white mt-0.5">สวนลุมพินี (ประตู 1)</h4>
+                                    <p class="text-[10px] text-slate-400">หมวดหมู่: ขยะทั่วไป • 22 ต.ค. 2026 10:15 น.</p>
+                                </div>
+                                <span class="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                                    กำลังดำเนินการ
+                                </span>
+                            </div>
+
+                            <div class="flex space-x-2.5 bg-[#080d1a] p-2 rounded-xl border border-[#1f2d42]">
+                                <img src="https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=100&q=80" alt="Lumphini" class="w-12 h-12 rounded-lg object-cover shrink-0">
+                                <p class="text-[10px] text-slate-300 italic self-center">"ขยะล้นออกมานอกถังบริเวณทางเดินประตู 1"</p>
+                            </div>
+
+                            <!-- Progress Timeline Steps -->
+                            <div class="space-y-1 pt-1">
+                                <div class="flex justify-between text-[9px]">
+                                    <span class="text-emerald-400 font-semibold flex items-center gap-0.5"><i data-lucide="check-circle-2" class="w-3 h-3"></i> รับเรื่องแล้ว</span>
+                                    <span class="text-amber-400 font-semibold flex items-center gap-0.5"><i data-lucide="loader" class="w-3 h-3 animate-spin"></i> กำลังดำเนินการ</span>
+                                    <span class="text-slate-600">แก้ไขเรียบร้อย</span>
+                                </div>
+                                <div class="w-full bg-[#080d1a] h-1.5 rounded-full overflow-hidden p-0.5 border border-[#1f2d42]">
+                                    <div class="bg-gradient-to-r from-emerald-500 to-amber-400 h-full rounded-full w-2/3"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card Ticket 2 -->
+                        <div class="bg-[#111827] border border-[#1f2d42] rounded-2xl p-3 space-y-2.5">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <span class="text-[9px] text-slate-500 font-mono block">#TICKET-8790</span>
+                                    <h4 class="font-bold text-xs text-white mt-0.5">สยามสแควร์ (ซอย 7)</h4>
+                                    <p class="text-[10px] text-slate-400">หมวดหมู่: ขยะรีไซเคิล • 21 ต.ค. 2026 16:30 น.</p>
+                                </div>
+                                <span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                                    แก้ไขเรียบร้อย
+                                </span>
+                            </div>
+
+                            <!-- Progress Timeline Steps Completed -->
+                            <div class="space-y-1 pt-1">
+                                <div class="flex justify-between text-[9px]">
+                                    <span class="text-emerald-400 font-semibold flex items-center gap-0.5"><i data-lucide="check-circle-2" class="w-3 h-3"></i> รับเรื่องแล้ว</span>
+                                    <span class="text-emerald-400 font-semibold flex items-center gap-0.5"><i data-lucide="check-circle-2" class="w-3 h-3"></i> กำลังดำเนินการ</span>
+                                    <span class="text-emerald-400 font-semibold flex items-center gap-0.5"><i data-lucide="check-circle-2" class="w-3 h-3"></i> แก้ไขเรียบร้อย</span>
+                                </div>
+                                <div class="w-full bg-[#080d1a] h-1.5 rounded-full overflow-hidden p-0.5 border border-[#1f2d42]">
+                                    <div class="bg-[#00cc99] h-full rounded-full w-full"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- BOTTOM NAVIGATION TABS -->
+        <nav class="bg-[#0b1326]/95 backdrop-blur-lg border-t border-[#1f2d42] py-1.5 px-2 absolute bottom-0 left-0 right-0 z-40">
+            <div class="grid grid-cols-4 gap-1">
+                <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn min-h-[46px] flex flex-col items-center justify-center text-[#00cc99] active:scale-95 transition">
+                    <i data-lucide="pie-chart" class="w-5 h-5"></i>
+                    <span class="text-[10px] font-bold mt-1">แดชบอร์ด</span>
+                </button>
+                <button onclick="switchTab('map')" id="nav-map" class="nav-btn min-h-[46px] flex flex-col items-center justify-center text-slate-400 active:scale-95 transition">
+                    <i data-lucide="map" class="w-5 h-5"></i>
+                    <span class="text-[10px] font-bold mt-1">แผนที่ถังขยะ</span>
+                </button>
+                <button onclick="switchTab('report')" id="nav-report" class="nav-btn min-h-[46px] flex flex-col items-center justify-center text-slate-400 active:scale-95 transition">
+                    <i data-lucide="send" class="w-5 h-5"></i>
+                    <span class="text-[10px] font-bold mt-1">แจ้งปัญหา</span>
+                </button>
+                <button onclick="switchTab('reports')" id="nav-reports" class="nav-btn min-h-[46px] flex flex-col items-center justify-center text-slate-400 active:scale-95 transition">
+                    <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                    <span class="text-[10px] font-bold mt-1">เรื่องของฉัน</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- PHOTO PREVIEW MODAL -->
+        <div id="photo-modal" class="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+            <div class="bg-[#111827] border border-[#1f2d42] rounded-3xl w-full p-4 space-y-3">
+                <div class="flex justify-between items-center border-b border-[#1f2d42] pb-2">
+                    <h3 class="font-bold text-xs text-white" id="modal-photo-title">รูปถ่ายสถานที่จริง</h3>
+                    <button onclick="closePhotoModal()" class="p-1 text-slate-400">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <div class="rounded-2xl overflow-hidden border border-[#1f2d42] bg-black">
+                    <img id="modal-photo-img" src="" alt="Bin Real View" class="w-full h-56 object-cover">
+                </div>
+                <button onclick="closePhotoModal()" class="w-full min-h-[42px] bg-[#1a2538] text-slate-200 text-xs font-semibold rounded-xl">
+                    ปิดหน้าต่าง
+                </button>
+            </div>
+        </div>
+
+        <!-- REWARD CATALOG MODAL -->
+        <div id="reward-modal" class="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+            <div class="bg-[#111827] border border-[#1f2d42] rounded-3xl w-full p-4 space-y-3">
+                <div class="flex justify-between items-center border-b border-[#1f2d42] pb-2">
+                    <div class="flex items-center space-x-1.5">
+                        <i data-lucide="gift" class="w-4 h-4 text-amber-400"></i>
+                        <h3 class="font-bold text-xs text-white">รายการของรางวัล Eco Rewards</h3>
+                    </div>
+                    <button onclick="closeRewardModal()" class="p-1 text-slate-400">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-2 max-h-60 overflow-y-auto no-scrollbar">
+                    <div class="bg-[#080d1a] border border-[#1f2d42] p-2.5 rounded-xl flex items-center justify-between">
+                        <div>
+                            <h4 class="font-bold text-xs text-white">ถุงขยะย่อยสลายได้ (1 ม้วน)</h4>
+                            <p class="text-[9px] text-slate-400">ใช้ 50 แต้ม PTS</p>
+                        </div>
+                        <button onclick="redeemItem('ถุงขยะย่อยสลายได้', 50)" class="min-h-[34px] bg-[#00cc99] active:bg-emerald-500 text-slate-950 text-xs px-3 rounded-lg font-bold">
+                            แลก
+                        </button>
+                    </div>
+
+                    <div class="bg-[#080d1a] border border-[#1f2d42] p-2.5 rounded-xl flex items-center justify-between">
+                        <div>
+                            <h4 class="font-bold text-xs text-white">ส่วนลดค่าน้ำ/ไฟฟ้า 50 บาท</h4>
+                            <p class="text-[9px] text-slate-400">ใช้ 100 แต้ม PTS</p>
+                        </div>
+                        <button onclick="redeemItem('ส่วนลดค่าน้ำ/ไฟฟ้า 50 บาท', 100)" class="min-h-[34px] bg-[#00cc99] active:bg-emerald-500 text-slate-950 text-xs px-3 rounded-lg font-bold">
+                            แลก
+                        </button>
+                    </div>
+                </div>
+
+                <button onclick="closeRewardModal()" class="w-full min-h-[42px] bg-[#1a2538] text-slate-300 text-xs font-semibold rounded-xl">
+                    ยกเลิก
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        lucide.createIcons();
+        let currentPoints = 120;
+        let leafletMap = null;
+        let mapMarkers = [];
+
+        const binLocations = [
+            { id: 1, title: 'สวนลุมพินี (ประตู 1)', lat: 13.7298, lng: 100.5365, status: 'full', capacity: '95%', address: 'เขตปทุมวัน กรุงเทพมหานคร', dist: '2.5 กม.' },
+            { id: 2, title: 'ตลาดนัดจตุจักร (ประตู 3)', lat: 13.8000, lng: 100.5500, status: 'full', capacity: '90%', address: 'เขตจตุจักร กรุงเทพมหานคร', dist: '5.1 กม.' },
+            { id: 3, title: 'ม.ธรรมศาสตร์ ศูนย์รังสิต (SC1)', lat: 14.0728, lng: 100.6015, status: 'almost', capacity: '85%', address: 'คลองหลวง ปทุมธานี', dist: '12.0 กม.' },
+            { id: 4, title: 'สยามสแควร์ (ซอย 7)', lat: 13.7445, lng: 100.5310, status: 'normal', capacity: '40%', address: 'เขตปทุมวัน กรุงเทพมหานคร', dist: '3.0 กม.' },
+            { id: 5, title: 'คลองหนึ่ง (คลอง 1)', lat: 13.9878, lng: 100.6171, status: 'full', capacity: '98%', address: 'ปทุมธานี', dist: '10.2 กม.' }
+        ];
+
+        function switchTab(tabId) {
+            const screens = ['dashboard', 'map', 'report', 'reports'];
+            screens.forEach(s => {
+                const screenEl = document.getElementById(`screen-${s}`);
+                const navBtn = document.getElementById(`nav-${s}`);
+                if (s === tabId) {
+                    screenEl.classList.remove('hidden');
+                    navBtn.classList.add('text-[#00cc99]');
+                    navBtn.classList.remove('text-slate-400');
+                } else {
+                    screenEl.classList.add('hidden');
+                    navBtn.classList.remove('text-[#00cc99]');
+                    navBtn.classList.add('text-slate-400');
+                }
+            });
+            if (tabId === 'map') setTimeout(initMap, 150);
+        }
+
+        function initMap() {
+            if (leafletMap) {
+                leafletMap.invalidateSize();
+                return;
+            }
+            leafletMap = L.map('map', { zoomControl: true }).setView([13.7563, 100.5018], 10);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(leafletMap);
+            renderMarkers('all');
+        }
+
+        function renderMarkers(filter) {
+            mapMarkers.forEach(m => leafletMap.removeLayer(m));
+            mapMarkers = [];
+
+            binLocations.forEach(bin => {
+                if (filter !== 'all' && bin.status !== filter) return;
+                
+                let bgColor = '#10b981'; // normal
+                if (bin.status === 'full') bgColor = '#ef4444';
+                if (bin.status === 'almost') bgColor = '#f59e0b';
+
+                const iconHtml = `
+                    <div class="custom-bin-pin" style="background-color: ${bgColor}; width: 28px; height: 28px; border: 2px solid #080d1a;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                    </div>
+                `;
+
+                const customIcon = L.divIcon({
+                    html: iconHtml,
+                    className: '',
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14]
+                });
+
+                const marker = L.marker([bin.lat, bin.lng], { icon: customIcon }).addTo(leafletMap);
+                marker.on('click', () => updateBottomSheet(bin));
+                mapMarkers.push(marker);
+            });
+        }
+
+        function filterMap(status) {
+            ['all', 'full', 'almost', 'normal'].forEach(b => {
+                const btnEl = document.getElementById(`btn-filter-${b}`);
+                if (b === status) {
+                    btnEl.className = 'min-h-[36px] px-3 rounded-xl text-xs font-semibold bg-[#00cc99] text-slate-950 border border-[#00cc99] whitespace-nowrap';
+                } else {
+                    btnEl.className = 'min-h-[36px] px-3 rounded-xl text-xs font-semibold bg-[#111827] text-slate-300 border border-[#1f2d42] whitespace-nowrap flex items-center gap-1';
+                }
+            });
+            renderMarkers(status);
+        }
+
+        function updateBottomSheet(bin) {
+            document.getElementById('sheet-title').innerText = `จุดถังขยะ: ${bin.title}`;
+            document.getElementById('sheet-address').innerText = bin.address;
+            document.getElementById('sheet-distance').innerText = `ห่างจากคุณ ~${bin.dist}`;
+            
+            const badge = document.getElementById('sheet-status-badge');
+            if(bin.status === 'full') {
+                badge.className = 'bg-red-500/20 text-red-400 border border-red-500/30 text-[9px] font-bold px-2 py-0.5 rounded-full';
+                badge.innerText = `ถังขยะเต็ม ${bin.capacity}`;
+            } else if(bin.status === 'almost') {
+                badge.className = 'bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[9px] font-bold px-2 py-0.5 rounded-full';
+                badge.innerText = `ถังขยะใกล้เต็ม ${bin.capacity}`;
+            } else {
+                badge.className = 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold px-2 py-0.5 rounded-full';
+                badge.innerText = `สถานะปกติ ${bin.capacity}`;
+            }
+            
+            document.getElementById('sheet-nav-btn').href = `https://maps.google.com/?q=${bin.lat},${bin.lng}`;
+        }
+
+        function locateMe() {
+            if (leafletMap) {
+                leafletMap.setView([13.7298, 100.5365], 13);
+                showToast('ตำแหน่งของคุณ', 'สวนลุมพินี เขตปทุมวัน');
+            }
+        }
+
+        function selectChip(btn, category) {
+            document.querySelectorAll('.chip-btn').forEach(b => {
+                b.className = 'chip-btn min-h-[44px] border-[#1f2d42] bg-[#080d1a] text-slate-400 border rounded-xl text-xs font-medium flex items-center justify-center space-x-2';
+            });
+            btn.className = 'chip-btn active min-h-[44px] border-[#00cc99] bg-[#00cc99]/10 text-[#00cc99] border rounded-xl text-xs font-semibold flex items-center justify-center space-x-2';
+            document.getElementById('selected-category').value = category;
+        }
+
+        function getGPSLocation() {
+            showToast('รับพิกัด GPS สำเร็จ', 'ตำแหน่ง: สวนลุมพินี ประตู 1');
+            document.getElementById('report-location-select').value = 'สวนลุมพินี (ประตู 1) - เขตปทุมวัน กทม.';
+        }
+
+        function previewImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    document.getElementById('preview-img').src = e.target.result;
+                    document.getElementById('upload-placeholder').classList.add('hidden');
+                    document.getElementById('upload-preview').classList.remove('hidden');
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function removeImage() {
+            document.getElementById('photo-input').value = '';
+            document.getElementById('upload-placeholder').classList.remove('hidden');
+            document.getElementById('upload-preview').classList.add('hidden');
+        }
+
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            const location = document.getElementById('report-location-select').value;
+            if (!location) return alert('กรุณาเลือกสถานที่');
+
+            currentPoints += 20;
+            document.getElementById('user-points').innerText = currentPoints;
+            document.getElementById('dash-user-pts').innerText = currentPoints;
+
+            showToast('ส่งรายงานสำเร็จ!', 'รับ +20 Eco Points เรียบร้อยแล้ว');
+            switchTab('reports');
+            e.target.reset();
+            removeImage();
+        }
+
+        function openPhotoModal(title, imgSrc) {
+            document.getElementById('modal-photo-title').innerText = `ภาพจริง: ${title}`;
+            document.getElementById('modal-photo-img').src = imgSrc;
+            document.getElementById('photo-modal').classList.remove('hidden');
+        }
+
+        function closePhotoModal() {
+            document.getElementById('photo-modal').classList.add('hidden');
+        }
+
+        function openRewardModal() {
+            document.getElementById('reward-modal').classList.remove('hidden');
+        }
+
+        function closeRewardModal() {
+            document.getElementById('reward-modal').classList.add('hidden');
+        }
+
+        function redeemItem(name, pts) {
+            if (currentPoints >= pts) {
+                currentPoints -= pts;
+                document.getElementById('user-points').innerText = currentPoints;
+                document.getElementById('dash-user-pts').innerText = currentPoints;
+                showToast('แลกสำเร็จ!', `คุณได้แลกรับ ${name}`);
+                closeRewardModal();
+            } else {
+                alert('คะแนนสะสมไม่เพียงพอ');
+            }
+        }
+
+        function refreshData() {
+            const icon = document.getElementById('refresh-icon');
+            icon.classList.add('animate-spin');
+            setTimeout(() => {
+                icon.classList.remove('animate-spin');
+                showToast('อัปเดตระบบแล้ว', 'ซิงค์ข้อมูล Real-time ล่าสุดเรียบร้อย');
+            }, 600);
+        }
+
+        function toggleNotification(checkbox) {
+            showToast(checkbox.checked ? 'เปิดแจ้งเตือนแล้ว' : 'ปิดแจ้งเตือนแล้ว', 'ระบบอัปเดตการตั้งค่าพุชทันที');
+        }
+
+        function showToast(title, desc) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-title').innerText = title;
+            document.getElementById('toast-desc').innerText = desc;
+            toast.classList.remove('-translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('-translate-y-20', 'opacity-0');
+            }, 2500);
+        }
+    </script>
+</body>
+</html>
